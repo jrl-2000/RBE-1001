@@ -1,0 +1,183 @@
+// VEX V5 C++ Project with Competition Template
+#include "vex.h"
+using namespace vex;
+
+//#region config_globals
+vex::brain      Brain;
+vex::motor      LeftMotor(vex::PORT1, vex::gearSetting::ratio18_1, false);
+vex::motor      RightMotor(vex::PORT2, vex::gearSetting::ratio18_1, true);
+vex::motor      motor_3(vex::PORT3, vex::gearSetting::ratio18_1, false);
+vex::motor      motor_5(vex::PORT5, vex::gearSetting::ratio18_1, false);
+vex::motor      motor_8(vex::PORT8, vex::gearSetting::ratio18_1, false);
+vex::line       line_left(Brain.ThreeWirePort.A);
+vex::line       line_right(Brain.ThreeWirePort.B);
+vex::controller con(vex::controllerType::primary);
+//#endregion config_globals
+
+
+// Creates a competition object that allows access to Competition methods.
+vex::competition Competition;
+
+void pre_auton() {
+    // All activities that occur before competition start
+    // Example: setting initial positions
+
+}
+
+void autonomous() {
+    
+    enum state {armupfloor, drivingforwardtobump, raisingback, drivingforwardonbump, raisingrack, drivingoffbump, drivingintoconstruction, 
+    backingup, loweringarm, turningtodorm, drivingtodorm, deliveringpizza, movingback, turningfortele, done};
+    
+    state cstate = armupfloor;   //the first state is going to be the arm lift, this iniitializes it
+    
+    while (cstate != done){     //will run until the "done" state is reached
+    
+    switch(cstate){
+        case armupfloor:                                                   
+            motor_8.startRotateFor(0.490, rotationUnits::rev, 50, velocityUnits::rpm);
+            cstate=drivingforwardtobump;  //at the end of each case, the state is declared as the next state
+            break;  //allows the program to progress
+        case drivingforwardtobump:
+            LeftMotor.startRotateTo(5*32/(4*3.14159), rotationUnits::rev, 70, velocityUnits::pct);  //moves 32 inches forward
+            RightMotor.rotateTo(5*32/(4*3.14159), rotationUnits::rev, 70, velocityUnits::pct);
+            cstate=raisingback;
+            break;
+        case raisingback:
+            motor_3.rotateFor(2, rotationUnits::rev, 50, velocityUnits::pct);
+            cstate=drivingforwardonbump;
+            break;
+        case drivingforwardonbump:
+            LeftMotor.startRotateFor(5*6/(4*3.14159), rotationUnits::rev, 70, velocityUnits::pct);  //moves 6 inches forward
+            RightMotor.rotateFor(5*6/(4*3.14159), rotationUnits::rev, 70, velocityUnits::pct);
+            cstate=raisingrack;
+            break;
+        case raisingrack:
+            motor_3.rotateFor(-2, rotationUnits::rev, 50, velocityUnits::pct);
+            cstate=drivingoffbump;
+            break;
+        case drivingoffbump:
+            LeftMotor.startRotateFor(5*10/(4*3.14159), rotationUnits::rev, 30, velocityUnits::pct);  //moves 6 inches forward
+            RightMotor.rotateFor(5*10/(4*3.14159), rotationUnits::rev, 30, velocityUnits::pct);
+            cstate=drivingintoconstruction;
+            break;
+        case drivingintoconstruction: 
+             while(cstate==drivingintoconstruction){    //goes forward till both line sensors read white
+                 if(line_left.value(vex::analogUnits::range12bit)>850 || line_right.value(vex::analogUnits::range12bit)>850){
+                    LeftMotor.spin(directionType::fwd, 30, velocityUnits::pct);
+                    RightMotor.spin(directionType::fwd, 30, velocityUnits::pct); 
+                 }
+                else{LeftMotor.stop(); RightMotor.stop(); cstate=backingup;} 
+            }
+            break;
+        case backingup:
+            RightMotor.startRotateFor(-5*6/(4*3.14159), rotationUnits::rev, 50, velocityUnits::pct);       //backs up 6 inches
+            LeftMotor.rotateFor(-5*6/(4*3.14159), rotationUnits::rev, 50, velocityUnits::pct);
+            cstate= loweringarm;
+        case loweringarm:
+            motor_8.startRotateFor(-0.025, rotationUnits::rev, 50, velocityUnits::rpm);
+            cstate=turningtodorm;
+        case turningtodorm:
+            RightMotor.startRotateFor(-5*0.72, rotationUnits::rev, 60, velocityUnits::pct);       
+            LeftMotor.rotateFor(5*0.72, rotationUnits::rev, 60, velocityUnits::pct);
+            cstate=drivingtodorm;
+            break;
+        case drivingtodorm:
+            RightMotor.startRotateFor(5*5/(4*3.14159), rotationUnits::rev, 100, velocityUnits::pct);       //drives forward 5 inches
+            LeftMotor.rotateFor(5*5/(4*3.14159), rotationUnits::rev, 100, velocityUnits::pct);
+            cstate=deliveringpizza;
+            break;
+        case deliveringpizza:   //alot of the code is dead reackoning, which works because everything is a small distance
+            motor_5.rotateFor(3, rotationUnits::rev, 100, velocityUnits::rpm);
+            Brain.Screen.print("PIZZA DELIVERY");
+            cstate=movingback;
+            break; 
+        case movingback:  //using PID control to line follow back till both sensors read white. This is just to demonstate line following capabilities
+            while (cstate == movingback) {  //line followers are on the back, so it linefollows while driving backwards
+            if (line_left.value(vex::analogUnits::range12bit)>1000 || line_right.value(vex::analogUnits::range12bit)>1000){
+                float KP = 1;
+                float sensorleft = line_left.value(vex::percentUnits::pct);
+                float sensorright = line_right.value(vex::percentUnits::pct);
+                float errorright = sensorleft-sensorright;
+                float errorleft = sensorright-sensorleft;
+                RightMotor.spin(directionType::rev, 50- KP*errorright, velocityUnits::rpm);       
+                LeftMotor.spin(directionType::rev, 50- KP*errorleft, velocityUnits::rpm);
+                }
+            else{LeftMotor.stop(); RightMotor.stop(); cstate=turningfortele;} 
+        }
+            break;
+        case turningfortele:
+            RightMotor.startRotateFor(-5*0.72, rotationUnits::rev, 60, velocityUnits::pct);     
+            LeftMotor.rotateFor(5*0.72, rotationUnits::rev, 60, velocityUnits::pct);
+            cstate=done;
+        case done:
+            break;
+        default:
+           Brain.Screen.print("well that didn't work");
+           break;
+        
+    }
+    }
+    
+}
+
+void drivercontrol() {
+    while (true) {
+        // This is the main loop for the driver control.
+        // Each time through the loop you should update motor
+        // movements based on input from the controller.
+        if (con.ButtonL1.pressing()==1) {  //button L1 moves the arm up a floor level (using encoders)
+    motor_8.startRotateFor(0.480, rotationUnits::rev, 40, velocityUnits::rpm);
+}
+if (con.ButtonL2.pressing()==1) {   //button L2 moves the arm down a floor level (using encoders)
+    motor_8.startRotateFor(-0.38, rotationUnits::rev, 40, velocityUnits::rpm);
+}
+
+if (con.ButtonUp.pressing()==1) {   //the up arrow outtakes the pizza when pressed (but not held :) @professorLewin)
+    motor_5.startRotateFor(2, rotationUnits::rev, 100, velocityUnits::rpm);
+}
+if (con.ButtonA.pressing()==1) {  //moves the arm up one floor level when the pizza is not in the cradle (encoders are not the greatest at adjusting for weight)
+    motor_8.startRotateFor(0.460, rotationUnits::rev, 40, velocityUnits::rpm);
+}
+if (con.ButtonB.pressing()==1) {    //moves the arm down one floor level when the pizza is not in the cradle (encoders are not the greatest at adjusting for weight)
+    motor_8.startRotateFor(-0.40, rotationUnits::rev, 40, velocityUnits::rpm);
+}
+if (con.ButtonDown.pressing()==1) {   //intakes the pizza for a set time upon click of the down button, helps with getting the pizza into the cradle at the pizzeria
+    motor_5.startRotateFor(-2, rotationUnits::rev, 100, velocityUnits::rpm);
+}
+while (con.ButtonR2.pressing()==1) {   //holding R2 moves the rack and pinion down while being held
+    motor_3.spin(directionType::fwd, 50, velocityUnits::pct);
+    }
+if (con.ButtonR2.pressing()==0) {    //releasing R2 holds the rack in place (the rack and pinion will slide down if breaktype is not specified)
+    motor_3.stop(brakeType::hold);
+    }
+while (con.ButtonR1.pressing()==1) {   //holding R1 moves the rack and pinion up while being held
+    motor_3.spin(directionType::rev, 50, velocityUnits::pct);
+    }
+if (con.ButtonR1.pressing()==0) {    //releasing R1 holds the rack in place
+    motor_3.stop(brakeType::hold);
+    
+}
+
+
+LeftMotor.spin(directionType::fwd, 5*(con.Axis3.value() + con.Axis1.value())/2, velocityUnits::pct); //(Axis2+Axis1)/2;  //arcade mode left joystick forward, right joystick turning
+RightMotor.spin(directionType::fwd, 5*(con.Axis3.value() - con.Axis1.value())/2, velocityUnits::pct);//(Axis2-Axis1)/2;
+
+
+
+}
+}
+
+int main() {
+    // Do not adjust the lines below
+
+    // Set up (but don't start) callbacks for autonomous and driver control periods.
+    Competition.autonomous(autonomous);
+    Competition.drivercontrol(drivercontrol);
+
+    // Run the pre-autonomous function.
+    pre_auton();
+
+    // Robot Mesh Studio runtime continues to run until all threads and
+    // competition callbacks are finished.
+}
