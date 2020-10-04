@@ -1,0 +1,190 @@
+
+// VEX V5 C++ Project with Competition Template
+#include "vex.h"
+using namespace vex;
+
+//#region config_globals
+vex::brain      Brain;
+vex::motor      LeftMotor(vex::PORT1, vex::gearSetting::ratio18_1, false);
+vex::motor      RightMotor(vex::PORT2, vex::gearSetting::ratio18_1, true);
+vex::motor      motor_3(vex::PORT3, vex::gearSetting::ratio18_1, false);
+vex::motor      motor_5(vex::PORT5, vex::gearSetting::ratio18_1, false);
+vex::motor      motor_8(vex::PORT8, vex::gearSetting::ratio18_1, false);
+vex::line       line_left(Brain.ThreeWirePort.A);
+vex::line       line_right(Brain.ThreeWirePort.B);
+vex::controller con(vex::controllerType::primary);
+//#endregion config_globals
+
+
+// Creates a competition object that allows access to Competition methods.
+vex::competition Competition;
+
+void pre_auton() {
+    // All activities that occur before competition start
+    // Example: setting initial positions
+
+}
+
+void autonomous() {
+    // Place autonomous code here
+enum state {driving, turning, movearmlevelup, movingtodorm, deliverpizza, linefollowback, turntopizzeria, 
+raisearm, drivetopizzeria, intake, drivebackwards, turn, movetodorm, deliversecondpizza, backup, done};
+    
+    state cstate = driving;    //first step initialized: driving forward towards Faraday
+    
+    while (cstate != done){   //runs until not done (done is a state)
+    
+    switch (cstate) {
+        case driving:
+            LeftMotor.startRotateFor(19, rotationUnits::rev, 100, velocityUnits::pct);
+            RightMotor.rotateFor(19, rotationUnits::rev, 100, velocityUnits::pct);
+            cstate=turning;
+            break;
+        case turning:
+            RightMotor.startRotateFor(5*0.72, rotationUnits::rev, 60, velocityUnits::pct);       
+            LeftMotor.rotateFor(-5*0.72, rotationUnits::rev, 60, velocityUnits::pct);
+            cstate=movearmlevelup;
+        case movearmlevelup:
+            motor_8.startRotateFor(0.490, rotationUnits::rev, 50, velocityUnits::rpm);
+            cstate=movingtodorm;
+            break;
+        case movingtodorm:
+            LeftMotor.startRotateFor(5*12/(4*3.14159), rotationUnits::rev, 100, velocityUnits::pct);  //moves 32 inches forward
+            RightMotor.rotateFor(5*12/(4*3.14159), rotationUnits::rev, 100, velocityUnits::pct);
+            cstate=deliverpizza;
+            break;
+        case deliverpizza:
+            motor_5.rotateFor(3, rotationUnits::rev, 100, velocityUnits::rpm);
+            Brain.Screen.print("PIZZA DELIVERY");
+            cstate=linefollowback;
+            break;   //dead reckons up till this point, as it is faster
+        case linefollowback:   //line following here allows for the robot to reposition itself if off because of the pizza delivery or dead reckoning
+            while (cstate == linefollowback) {
+            if (line_left.value(vex::analogUnits::range12bit)>1000 || line_right.value(vex::analogUnits::range12bit)>1000){
+                float KP = 1;
+                float sensorleft = line_left.value(vex::percentUnits::pct);
+                float sensorright = line_right.value(vex::percentUnits::pct);
+                float errorright = sensorleft-sensorright;
+                float errorleft = sensorright-sensorleft;
+                RightMotor.spin(directionType::rev, 50- KP*errorright, velocityUnits::rpm);       
+                LeftMotor.spin(directionType::rev, 50- KP*errorleft, velocityUnits::rpm);
+                }
+            else{LeftMotor.stop(); RightMotor.stop(); cstate=turntopizzeria;} 
+        }
+            cstate=turntopizzeria;
+            break;
+        case turntopizzeria:
+            RightMotor.startRotateFor(5*0.72, rotationUnits::rev, 60, velocityUnits::pct);     
+            LeftMotor.rotateFor(-5*0.72, rotationUnits::rev, 60, velocityUnits::pct);
+            cstate=raisearm;
+            break;
+        case raisearm:
+            motor_8.startRotateFor(0.490, rotationUnits::rev, 50, velocityUnits::rpm);
+            cstate=drivetopizzeria;
+            break;
+        case drivetopizzeria:
+            LeftMotor.startRotateFor(17.2, rotationUnits::rev, 100, velocityUnits::pct);
+            RightMotor.rotateFor(17.2, rotationUnits::rev, 100, velocityUnits::pct);
+            cstate=intake;
+            break;
+        case intake:
+            motor_5.rotateFor(-4, rotationUnits::rev, 100, velocityUnits::rpm);
+            cstate=drivebackwards;
+            break;
+        case drivebackwards:
+            LeftMotor.startRotateFor(-18, rotationUnits::rev, 100, velocityUnits::pct);
+            RightMotor.rotateFor(-18, rotationUnits::rev, 100, velocityUnits::pct);
+            cstate=turn;
+            break;
+        case turn:
+            RightMotor.startRotateFor(-5*0.72, rotationUnits::rev, 60, velocityUnits::pct);     
+            LeftMotor.rotateFor(5*0.72, rotationUnits::rev, 60, velocityUnits::pct);
+            cstate=movetodorm;
+            break;
+        case movetodorm:   //at this point this code is extra, but when run past 30 seconds this will deliver a second pizza to Faraday on the third floor
+            LeftMotor.startRotateFor(5*16/(4*3.14159), rotationUnits::rev, 100, velocityUnits::pct);  //moves 32 inches forward
+            RightMotor.rotateFor(5*16/(4*3.14159), rotationUnits::rev, 100, velocityUnits::pct);
+            cstate=deliversecondpizza;
+            break;
+        case deliversecondpizza:
+            motor_5.rotateFor(3, rotationUnits::rev, 100, velocityUnits::rpm);
+            Brain.Screen.print("PIZZA DELIVERY");
+            cstate= backup;
+            break;
+        case backup:
+            LeftMotor.startRotateFor(-5*6/(4*3.14159), rotationUnits::rev, 100, velocityUnits::pct);  //moves 32 inches forward
+            RightMotor.rotateFor(-5*6/(4*3.14159), rotationUnits::rev, 100, velocityUnits::pct);
+            cstate=done;
+            break;
+        case done:
+            break;
+        default:
+           Brain.Screen.print("well that didn't work");
+           break;
+    }
+    
+    }
+
+}
+
+void drivercontrol() {  //driver control is the same as the other codes, see comments on blue code autonmous 1 for greater detail
+    // Place drive control code here, inside the loop
+    while (true) {
+        // This is the main loop for the driver control.
+        // Each time through the loop you should update motor
+        // movements based on input from the controller.
+
+ if (con.ButtonL1.pressing()==1) {
+    motor_8.startRotateFor(0.480, rotationUnits::rev, 40, velocityUnits::rpm);
+}
+if (con.ButtonL2.pressing()==1) {
+    motor_8.startRotateFor(-0.38, rotationUnits::rev, 40, velocityUnits::rpm);
+}
+if (con.ButtonA.pressing()==1) {
+    motor_8.startRotateFor(0.470, rotationUnits::rev, 40, velocityUnits::rpm);
+}
+if (con.ButtonB.pressing()==1) {
+    motor_8.startRotateFor(-0.40, rotationUnits::rev, 40, velocityUnits::rpm);
+}
+
+if (con.ButtonUp.pressing()==1) {
+    motor_5.startRotateFor(2, rotationUnits::rev, 100, velocityUnits::rpm);
+}
+if (con.ButtonDown.pressing()==1) {
+    motor_5.startRotateFor(-2, rotationUnits::rev, 100, velocityUnits::rpm);
+}
+while (con.ButtonR2.pressing()==1) {
+    motor_3.spin(directionType::fwd, 50, velocityUnits::pct);
+    }
+if (con.ButtonR2.pressing()==0) {
+    motor_3.stop(brakeType::hold);
+    }
+while (con.ButtonR1.pressing()==1) {
+    motor_3.spin(directionType::rev, 50, velocityUnits::pct);
+    }
+if (con.ButtonR1.pressing()==0) {
+    motor_3.stop(brakeType::hold);
+    
+}
+
+
+LeftMotor.spin(directionType::fwd, 5*(con.Axis3.value() + con.Axis1.value())/2, velocityUnits::pct); //(Axis2+Axis1)/2;
+RightMotor.spin(directionType::fwd, 5*(con.Axis3.value() - con.Axis1.value())/2, velocityUnits::pct);//(Axis2-Axis1)/2;
+
+
+    }
+}
+
+int main() {
+    // Do not adjust the lines below
+
+    // Set up (but don't start) callbacks for autonomous and driver control periods.
+    Competition.autonomous(autonomous);
+    Competition.drivercontrol(drivercontrol);
+
+    // Run the pre-autonomous function.
+    pre_auton();
+
+    // Robot Mesh Studio runtime continues to run until all threads and
+    // competition callbacks are finished.
+}
